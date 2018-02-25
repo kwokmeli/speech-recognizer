@@ -14,9 +14,7 @@ Fs = 16000 # Sampling rate in Hz
 SAMPLE_LENGTH = 4 # Length of audio sample in seconds
 IF = 25
 
-AUDIOFILE = "/Users/mel/Desktop/PMP/E E 516/hw3/Phrases/What time is it/time1.csv"
-SAVELOCATION = "/Users/mel/Desktop/PMP/E E 516/hw3/p3/time1-matrix.csv"
-FIGLOCATION = "/Users/mel/Desktop/PMP/E E 516/hw3/p3/time1-spec.png"
+AUDIOFILE = "/Users/mel/Desktop/PMP/E E 516/hw3/Phrases/Odessa/od10.csv"
 
 L = WINDOW * Fs
 
@@ -61,12 +59,13 @@ IMX = max(Esn)
 # Find ITL and ITU, the lower and upper thresholds of the energy signal
 ITL = min(0.03 * (IMX - IMN) + IMN, 4 * IMN)
 ITU = 5 * ITL
+print "ITL: %f" % ITL
+print "ITU: %f" % ITU
 
-# Find the zero crossing array of the first 100 ms of silence
-SILENCE_SAMPLES = int(Fs * 0.1)
-ZCsn = np.zeros([int(SILENCE_SAMPLES / L), 1])
-for i in range(0, int(SILENCE_SAMPLES / L)):
-    # For the frames that are within the first 100 ms of silence
+# Find the zero crossing array
+ZCsn = np.zeros([(SAMPLE_LENGTH * Fs - int(L)) / int(L), 1])
+for i in range(0, (SAMPLE_LENGTH * Fs - int(L)) / int(L)):
+    # For each row
     zcs = 0
     for j in range(0, int(L) - 1):
         # For each sample in a frame
@@ -74,13 +73,59 @@ for i in range(0, int(SILENCE_SAMPLES / L)):
     ZCsn[i, :] = (1 / L) * zcs
 np.savetxt("ZCsn.csv", ZCsn, delimiter = ",")
 
-# Find the zero crossing threshold
-IZC_mean = np.average(ZCsn)
-IZC_std = np.std(ZCsn)
-IZCT = min(IF, IZC_mean + 2 * IZC_std)
+# Find the zero crossing array of the first 100 ms of silence
+SILENCE_SAMPLES = int(Fs * 0.1)
+ZCsn_silence = np.zeros([int(SILENCE_SAMPLES / L), 1])
+for i in range(0, int(SILENCE_SAMPLES / L)):
+    ZCsn_silence[i, :] = ZCsn[i, :]
+np.savetxt("ZCsn_silence.csv", ZCsn_silence, delimiter = ",")
 
-# # Plot the signal
-# plt.plot(Esn)
-# plt.xlabel("Time")
-# plt.ylabel("Es(n)")
-# plt.show()
+# Find the zero crossing threshold
+IZC_mean = np.average(ZCsn_silence)
+IZC_std = np.std(ZCsn_silence)
+IZCT = min(IF, IZC_mean + 2 * IZC_std)
+print "IZCT: %f" % IZCT
+
+# Find frame N1
+mglobal = 0
+iglobal = None
+N1 = None
+
+def greaterThanOrEqualITL(m):
+    while Esn[m, 0] < ITL:
+        m = m + 1
+    global mglobal
+    global iglobal
+    mglobal = m
+    iglobal = m
+    return m
+
+def lessThanITL(i):
+    global mglobal
+    global iglobal
+    global N1
+    if Esn[i, 0] < ITL:
+        mglobal = i + 1
+        lessThanITL(greaterThanOrEqualITL(i + 1))
+    else:
+        if Esn[i, 0] >= ITL:
+            N1 = i
+            if iglobal == mglobal:
+                N1 = N1 - 1
+        else:
+            iglobal = i + 1
+            lessThanITL(iglobal)
+
+lessThanITL(greaterThanOrEqualITL(mglobal))
+print "mglobal: %d" % mglobal
+print "iglobal: %d" % iglobal
+print "N1: %d" % N1
+
+
+# Plot the signal
+plt.plot(Esn)
+plt.xlabel("Frame")
+plt.ylabel("Es(n)")
+plt.axvline(x = N1, color = "r")
+# plt.savefig("n1.png", bbox_inches = "tight")
+plt.show()
